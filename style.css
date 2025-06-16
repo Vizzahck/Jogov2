@@ -1,61 +1,27 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+// ... (códigos anteriores iguais)
+
+function finalizarJogo() {
+    if (jogoFinalizado) return; // evita múltiplas chamadas
+    jogoFinalizado = true;
+    setTimeout(() => {
+        finalDiv.classList.remove('hidden');
+        mensagemFinal.innerHTML = `
+        A nossa relação é como esse jogo...<br>
+        Vão ter fases difíceis, isso faz parte...<br>
+        Mas ainda assim, é só não desistir.<br><br>
+        Eu te amo ❤️`;
+        sons.vitoria.play();
+    }, 1000); // pequeno delay para garantir que o boss sumiu antes
 }
 
-body {
-    overflow: hidden;
-    background-color: black;
+// Inicialização segura
+function iniciar() {
+    jogoFinalizado = false;
+    finalDiv.classList.add('hidden');
+    mensagemFinal.innerHTML = '';
+    fase = 1;
+    reiniciarFase();
+    loop();
 }
 
-canvas {
-    display: block;
-}
-
-.hud {
-    position: fixed;
-    top: 10px;
-    width: 100%;
-    text-align: center;
-    color: white;
-    font-family: sans-serif;
-    z-index: 2;
-    pointer-events: none;
-}
-
-#vidaNave {
-    position: absolute;
-    left: 10px;
-}
-
-#fase {
-    position: absolute;
-    right: 10px;
-}
-
-#final {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.95);
-    color: white;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    font-size: 22px;
-    z-index: 3;
-}
-
-#final img {
-    width: 150px;
-    margin-bottom: 20px;
-}
-
-.hidden {
-    display: none;
-}
+iniciar();
