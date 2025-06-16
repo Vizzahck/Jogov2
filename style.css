@@ -1,37 +1,26 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
 body {
+    margin: 0;
     overflow: hidden;
     background-color: black;
+    font-family: 'Arial', sans-serif;
 }
 
 canvas {
     display: block;
+    margin: 0 auto;
+    background-color: black;
 }
 
 .hud {
     position: fixed;
     top: 10px;
-    width: 100%;
-    text-align: center;
-    color: white;
-    font-family: sans-serif;
-    z-index: 2;
-    pointer-events: none;
-}
-
-#vidaNave {
-    position: absolute;
     left: 10px;
-}
-
-#fase {
-    position: absolute;
-    right: 10px;
+    color: white;
+    font-size: 20px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 #final {
@@ -40,15 +29,14 @@ canvas {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0,0,0,0.95);
+    background-color: rgba(0,0,0,0.9);
     color: white;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    text-align: center;
+    justify-content: center;
     font-size: 22px;
-    z-index: 3;
+    z-index: 20;
 }
 
 #final img {
