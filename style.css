@@ -1,0 +1,53 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+body {
+    overflow: hidden;
+    background-color: black;
+}
+canvas {
+    display: block;
+}
+.hud {
+    position: fixed;
+    top: 10px;
+    width: 100%;
+    text-align: center;
+    color: white;
+    font-family: sans-serif;
+    z-index: 2;
+    pointer-events: none;
+}
+#vidaNave {
+    position: absolute;
+    left: 10px;
+}
+#fase {
+    position: absolute;
+    right: 10px;
+}
+#final {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.95);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    font-size: 22px;
+    z-index: 3;
+}
+#final img {
+    width: 150px;
+    margin-bottom: 20px;
+}
+.hidden {
+    display: none;
+}
