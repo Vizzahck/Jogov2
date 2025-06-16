@@ -3,18 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Galaxy Shooter</title>
+    <title>Galaxy Love Shooter</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="hud">
+        <div id="vidaNave">❤️❤️❤️❤️❤️</div>
+        <div id="fase">Fase 1</div>
+    </div>
+
     <canvas id="gameCanvas"></canvas>
-    <div id="hud">
-        <div id="fase">Fase: 1</div>
-        <div id="vida">❤️❤️❤️</div>
+
+    <div id="final" class="hidden">
+        <img src="./assets/imagens/coracao.png" alt="Coração">
+        <p id="mensagemFinal"></p>
     </div>
-    <div id="final" class="oculto">
-        <h1>Viu amor, às vezes nosso relacionamento vai ser difícil, com desafios, obstáculos, inimigos e fases complicadas… mas no final, se estivermos juntos, sempre vamos vencer. Eu te amo! ❤️</h1>
-    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
