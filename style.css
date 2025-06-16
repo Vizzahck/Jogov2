@@ -3,13 +3,16 @@
     padding: 0;
     box-sizing: border-box;
 }
+
 body {
     overflow: hidden;
     background-color: black;
 }
+
 canvas {
     display: block;
 }
+
 .hud {
     position: fixed;
     top: 10px;
@@ -20,14 +23,17 @@ canvas {
     z-index: 2;
     pointer-events: none;
 }
+
 #vidaNave {
     position: absolute;
     left: 10px;
 }
+
 #fase {
     position: absolute;
     right: 10px;
 }
+
 #final {
     position: fixed;
     top: 0;
@@ -44,10 +50,12 @@ canvas {
     font-size: 22px;
     z-index: 3;
 }
+
 #final img {
     width: 150px;
     margin-bottom: 20px;
 }
+
 .hidden {
     display: none;
 }
