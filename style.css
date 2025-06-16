@@ -1,27 +1,16 @@
-// ... (códigos anteriores iguais)
-
-function finalizarJogo() {
-    if (jogoFinalizado) return; // evita múltiplas chamadas
-    jogoFinalizado = true;
-    setTimeout(() => {
-        finalDiv.classList.remove('hidden');
-        mensagemFinal.innerHTML = `
-        A nossa relação é como esse jogo...<br>
-        Vão ter fases difíceis, isso faz parte...<br>
-        Mas ainda assim, é só não desistir.<br><br>
-        Eu te amo ❤️`;
-        sons.vitoria.play();
-    }, 1000); // pequeno delay para garantir que o boss sumiu antes
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-// Inicialização segura
-function iniciar() {
-    jogoFinalizado = false;
-    finalDiv.classList.add('hidden');
-    mensagemFinal.innerHTML = '';
-    fase = 1;
-    reiniciarFase();
-    loop();
+body {
+    overflow: hidden;
+    background: black;
 }
 
-iniciar();
+canvas {
+    display: block;
+    margin: 0 auto;
+    background-color: black;
+}
