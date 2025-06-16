@@ -1,254 +1,213 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// Assets
-const imagens = './assets/imagens/';
-const sounds = './assets/sounds/';
+const hudFase = document.getElementById('fase');
+const hudVida = document.getElementById('vida');
+const finalScreen = document.getElementById('final');
 
-const imagensNave = ['nave1.png', 'nave2.png', 'nave3.png'];
-const imagensInimigos = ['inimigo1.png', 'inimigo2.png', 'inimigo3.png'];
-const imagensBoss = ['boss1.png', 'boss2.png', 'boss3.png'];
-const powerups = ['powerup_vida.png', 'powerup_escudo.png', 'powerup_tiro.png'];
-
-const fundo = new Image();
-fundo.src = `${imagens}fundo_estrelado.png`;
-
-const coracao = new Image();
-coracao.src = `${imagens}coracao.png`;
-
-// Sons
-const somTiro = new Audio(`${sounds}tiro_nave.wav`);
-const somTiroInimigo = new Audio(`${sounds}tiro_inimigo.wav`);
-const somExplosao = new Audio(`${sounds}explosao.wav`);
-const somPowerup = new Audio(`${sounds}powerup.wav`);
-const somDerrota = new Audio(`${sounds}derrota.wav`);
-const somVitoria = new Audio(`${sounds}vitoria.wav`);
-
-// Variáveis
 let fase = 1;
-let vida = 5;
+let vida = 3;
 let pontos = 0;
 let inimigosDerrotados = 0;
-let inimigosParaBoss = 15;
-let inimigos = [];
+let inimigosNecessarios = 15;
+let nave;
 let tiros = [];
+let inimigos = [];
 let tirosInimigos = [];
 let powerUps = [];
 let boss = null;
-let naveImg = new Image();
-let navePos = {x: canvas.width / 2 - 40, y: canvas.height - 120};
 let gameOver = false;
-let venceu = false;
+let jogoFinalizado = false;
 
-// HUD
-const vidaNave = document.getElementById('vidaNave');
-const faseDisplay = document.getElementById('fase');
-const finalDiv = document.getElementById('final');
-const mensagemFinal = document.getElementById('mensagemFinal');
+// Sons
+const somTiro = new Audio('assets/sounds/tiro_nave.wav');
+const somExplosao = new Audio('assets/sounds/explosao.wav');
+const somDerrota = new Audio('assets/sounds/derrota.wav');
+const somVitoria = new Audio('assets/sounds/vitoria.wav');
+const somPowerup = new Audio('assets/sounds/powerup.wav');
+const somTiroInimigo = new Audio('assets/sounds/tiro_inimigo.wav');
 
-// Funções auxiliares
-function carregarImagemAleatoria(lista) {
+// Carregar imagens
+const imagens = {
+    nave: ['nave1.png', 'nave2.png', 'nave3.png'].map(img => carregarImagem(`assets/imagens/${img}`)),
+    inimigos: ['inimigo1.png', 'inimigo2.png', 'inimigo3.png'].map(img => carregarImagem(`assets/imagens/${img}`)),
+    boss: ['boss1.png', 'boss2.png', 'boss3.png'].map(img => carregarImagem(`assets/imagens/${img}`)),
+    coracao: carregarImagem('assets/imagens/coracao.png'),
+    fundo: carregarImagem('assets/imagens/fundo_estrelado.png'),
+    powerups: {
+        vida: carregarImagem('assets/imagens/powerup_vida.png'),
+        escudo: carregarImagem('assets/imagens/powerup_escudo.png'),
+        tiro: carregarImagem('assets/imagens/powerup_tiro.png'),
+    },
+    tiros: {
+        nave: carregarImagem('assets/imagens/tiro_nave.png'),
+        inimigo: carregarImagem('assets/imagens/tiro_inimigo.png'),
+    }
+};
+
+function carregarImagem(src) {
     const img = new Image();
-    img.src = `${imagens}${lista[Math.floor(Math.random() * lista.length)]}`;
+    img.src = src;
     return img;
 }
 
+class Nave {
+    constructor() {
+        this.x = canvas.width / 2;
+        this.y = canvas.height - 100;
+        this.largura = 80;
+        this.altura = 80;
+        this.velocidade = 10;
+        this.sprite = imagens.nave[Math.min(2, Math.floor((fase - 1) / 7))];
+    }
+
+    desenhar() {
+        ctx.drawImage(this.sprite, this.x - this.largura / 2, this.y - this.altura / 2, this.largura, this.altura);
+    }
+
+    mover(x) {
+        this.x = Math.max(this.largura/2, Math.min(canvas.width - this.largura/2, x));
+    }
+}
+
+function spawnInimigo() {
+    const x = Math.random() * (canvas.width - 50) + 25;
+    const y = -50;
+    inimigos.push({
+        x,
+        y,
+        largura: 60,
+        altura: 60,
+        vida: 1 + Math.floor(fase/3),
+        sprite: imagens.inimigos[Math.floor(Math.random()*imagens.inimigos.length)],
+    });
+}
+
+function spawnBoss() {
+    const x = canvas.width / 2;
+    const y = 100;
+    boss = {
+        x,
+        y,
+        largura: 120,
+        altura: 120,
+        vida: 20 + fase * 5,
+        sprite: imagens.boss[Math.floor(Math.random()*imagens.boss.length)],
+    };
+}
+
+function desenharFundo() {
+    ctx.drawImage(imagens.fundo, 0, 0, canvas.width, canvas.height);
+}
+
+function desenharVida() {
+    hudVida.innerHTML = '❤️'.repeat(vida);
+}
+
+function desenharFase() {
+    hudFase.innerHTML = `Fase ${fase}`;
+}
+
+function atualizar() {
+    if (jogoFinalizado) return;
+
+    desenharFundo();
+    nave.desenhar();
+    desenharVida();
+    desenharFase();
+
+    tiros.forEach((t, i) => {
+        t.y -= t.vel;
+        ctx.drawImage(imagens.tiros.nave, t.x - 10, t.y - 20, 20, 40);
+        if (t.y < 0) tiros.splice(i,1);
+    });
+
+    inimigos.forEach((ini, i) => {
+        ini.y += 2;
+        ctx.drawImage(ini.sprite, ini.x - ini.largura/2, ini.y - ini.altura/2, ini.largura, ini.altura);
+        if (ini.y > canvas.height) {
+            inimigos.splice(i,1);
+            vida--;
+            if (vida <= 0) perder();
+        }
+    });
+
+    if (boss) {
+        ctx.drawImage(boss.sprite, boss.x - boss.largura/2, boss.y - boss.altura/2, boss.largura, boss.altura);
+    }
+
+    requestAnimationFrame(atualizar);
+}
+
+function perder() {
+    somDerrota.play();
+    gameOver = true;
+    vida = 3;
+    resetarFase();
+}
+
 function resetarFase() {
-    vida = 5;
     inimigos = [];
     tiros = [];
     tirosInimigos = [];
     powerUps = [];
     boss = null;
     inimigosDerrotados = 0;
-    inimigosParaBoss = Math.floor(15 * Math.pow(1.4, fase - 1));
-    naveImg = carregarImagemAleatoria(imagensNave);
-    navePos = {x: canvas.width / 2 - 40, y: canvas.height - 120};
+    inimigosNecessarios = Math.floor(15 * Math.pow(1.4, fase-1));
     gameOver = false;
-    venceu = false;
-    vidaNave.innerText = '❤️'.repeat(vida);
-    faseDisplay.innerText = `Fase ${fase}`;
-    finalDiv.classList.add('hidden');
+    iniciar();
 }
 
-// Criar inimigo
-function spawnInimigo() {
-    const img = carregarImagemAleatoria(imagensInimigos);
-    const x = Math.random() * (canvas.width - 60);
-    const y = -60;
-    const speed = 2 + fase * 0.3;
-    inimigos.push({img, x, y, speed, vida: 1});
+function iniciar() {
+    nave = new Nave();
+    desenharFase();
+    desenharVida();
+    finalScreen.classList.add('hidden');
+
+    const spawnLoop = setInterval(() => {
+        if (inimigosDerrotados >= inimigosNecessarios && !boss) {
+            spawnBoss();
+            clearInterval(spawnLoop);
+        } else if (!boss) {
+            spawnInimigo();
+        }
+    }, 800);
+
+    atualizar();
 }
 
-// Criar boss
-function spawnBoss() {
-    const img = carregarImagemAleatoria(imagensBoss);
-    const x = canvas.width / 2 - 100;
-    const y = -200;
-    const vidaBoss = Math.floor(30 * Math.pow(1.1, fase - 1));
-    boss = {img, x, y, speed: 2, vida: vidaBoss};
+function proximaFase() {
+    fase++;
+    if (fase > 21) {
+        jogoFinalizado = true;
+        somVitoria.play();
+        finalScreen.classList.remove('hidden');
+        return;
+    }
+    vida = 3;
+    resetarFase();
 }
 
-// Criar powerup
-function spawnPowerUp() {
-    const img = new Image();
-    img.src = `${imagens}${powerups[Math.floor(Math.random() * powerups.length)]}`;
-    const x = Math.random() * (canvas.width - 40);
-    const y = -40;
-    const tipo = img.src.includes('vida') ? 'vida' :
-                 img.src.includes('escudo') ? 'escudo' : 'tiro';
-    powerUps.push({img, x, y, speed: 3, tipo});
-}
-
-// Movimentação
 window.addEventListener('mousemove', (e) => {
-    navePos.x = e.clientX - 40;
+    nave.mover(e.clientX);
 });
 
-// Toque (mobile)
+window.addEventListener('click', () => {
+    tiros.push({x: nave.x, y: nave.y - 40, vel: 10});
+    somTiro.play();
+});
+
 window.addEventListener('touchmove', (e) => {
-    const touch = e.touches[0];
-    navePos.x = touch.clientX - 40;
-});
+    e.preventDefault();
+    nave.mover(e.touches[0].clientX);
+}, {passive:false});
 
-// Tiro
-setInterval(() => {
-    if (!gameOver && !venceu) {
-        tiros.push({x: navePos.x + 35, y: navePos.y});
-        somTiro.currentTime = 0;
-        somTiro.play();
-    }
-}, 400);
+window.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    tiros.push({x: nave.x, y: nave.y - 40, vel: 10});
+    somTiro.play();
+}, {passive:false});
 
-// Loop principal
-function loop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(fundo, 0, 0, canvas.width, canvas.height);
-
-    // Nave
-    ctx.drawImage(naveImg, navePos.x, navePos.y, 80, 80);
-
-    // Tiros da nave
-    tiros.forEach((t, i) => {
-        ctx.drawImage(coracao, t.x, t.y, 20, 20);
-        t.y -= 8;
-        if (t.y < -20) tiros.splice(i, 1);
-    });
-
-    // Inimigos
-    if (!boss && inimigosDerrotados < inimigosParaBoss) {
-        if (Math.random() < 0.02) spawnInimigo();
-    }
-
-    inimigos.forEach((inimigo, i) => {
-        ctx.drawImage(inimigo.img, inimigo.x, inimigo.y, 60, 60);
-        inimigo.y += inimigo.speed;
-        if (Math.random() < 0.01) {
-            tirosInimigos.push({x: inimigo.x + 30, y: inimigo.y + 60});
-            somTiroInimigo.currentTime = 0;
-            somTiroInimigo.play();
-        }
-        if (inimigo.y > canvas.height) inimigos.splice(i, 1);
-    });
-
-    // Boss
-    if (inimigosDerrotados >= inimigosParaBoss && !boss) spawnBoss();
-    if (boss) {
-        ctx.drawImage(boss.img, boss.x, boss.y, 200, 200);
-        boss.y += boss.speed;
-        if (boss.y > 50) boss.y = 50;
-
-        if (Math.random() < 0.02) {
-            tirosInimigos.push({x: boss.x + 100, y: boss.y + 200});
-            somTiroInimigo.currentTime = 0;
-            somTiroInimigo.play();
-        }
-    }
-
-    // Tiros dos inimigos
-    tirosInimigos.forEach((t, i) => {
-        ctx.fillStyle = 'red';
-        ctx.fillRect(t.x, t.y, 5, 15);
-        t.y += 5;
-        if (t.y > canvas.height) tirosInimigos.splice(i, 1);
-    });
-
-    // PowerUps
-    if (Math.random() < 0.001) spawnPowerUp();
-    powerUps.forEach((p, i) => {
-        ctx.drawImage(p.img, p.x, p.y, 40, 40);
-        p.y += p.speed;
-        if (p.y > canvas.height) powerUps.splice(i, 1);
-    });
-
-    // Colisões
-    tiros.forEach((t, ti) => {
-        inimigos.forEach((in, ii) => {
-            if (t.x < in.x + 60 && t.x + 20 > in.x &&
-                t.y < in.y + 60 && t.y + 20 > in.y) {
-                inimigos.splice(ii, 1);
-                tiros.splice(ti, 1);
-                inimigosDerrotados++;
-                somExplosao.currentTime = 0;
-                somExplosao.play();
-            }
-        });
-        if (boss && t.x < boss.x + 200 && t.x + 20 > boss.x &&
-            t.y < boss.y + 200 && t.y + 20 > boss.y) {
-            boss.vida--;
-            tiros.splice(ti, 1);
-            somExplosao.currentTime = 0;
-            somExplosao.play();
-            if (boss.vida <= 0) boss = null;
-        }
-    });
-
-    tirosInimigos.forEach((t, i) => {
-        if (t.x < navePos.x + 80 && t.x + 5 > navePos.x &&
-            t.y < navePos.y + 80 && t.y + 15 > navePos.y) {
-            vida--;
-            tirosInimigos.splice(i, 1);
-            vidaNave.innerText = '❤️'.repeat(vida);
-            if (vida <= 0) {
-                somDerrota.play();
-                gameOver = true;
-                setTimeout(resetarFase, 1500);
-            }
-        }
-    });
-
-    powerUps.forEach((p, i) => {
-        if (p.x < navePos.x + 80 && p.x + 40 > navePos.x &&
-            p.y < navePos.y + 80 && p.y + 40 > navePos.y) {
-            if (p.tipo === 'vida') vida = Math.min(vida + 1, 5);
-            if (p.tipo === 'escudo') vida = Math.min(vida + 2, 5);
-            if (p.tipo === 'tiro') { /* poderia melhorar o tiro futuramente */ }
-            vidaNave.innerText = '❤️'.repeat(vida);
-            powerUps.splice(i, 1);
-            somPowerup.play();
-        }
-    });
-
-    // Próxima fase ou vitória final
-    if (!boss && inimigosDerrotados >= inimigosParaBoss) {
-        if (fase < 21) {
-            fase++;
-            setTimeout(resetarFase, 1500);
-        } else {
-            somVitoria.play();
-            venceu = true;
-            finalDiv.classList.remove('hidden');
-            mensagemFinal.innerText = `Viu amor, às vezes nosso relacionamento vai ser difícil, 
-mas se continuarmos lutando juntos, venceremos qualquer desafio! Te amo ❤️`;
-        }
-    }
-
-    if (!gameOver && !venceu) requestAnimationFrame(loop);
-}
-
-// Iniciar
-resetarFase();
-loop();
+iniciar();
