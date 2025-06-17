@@ -4,296 +4,221 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// Imagens
-const img = (src) => {
-    const i = new Image();
-    i.src = src;
-    return i;
-};
+// Carregar imagens
+const imagens = {};
+const nomesImagens = ['nave1', 'nave2', 'nave3', 'boss1', 'boss2', 'boss3', 'coracao', 'fundo_estrelado', 'inimigo1', 'inimigo2', 'inimigo3', 'powerup_escudo', 'powerup_tiro', 'powerup_vida', 'tiro_nave', 'tiro_inimigo'];
+nomesImagens.forEach(nome => {
+    const img = new Image();
+    img.src = `assets/imagens/${nome}.png`;
+    imagens[nome] = img;
+});
 
-const imagens = {
-    fundo: img('assets/imagens/fundo_estrelado.png'),
-    nave: [img('assets/imagens/nave1.png'), img('assets/imagens/nave2.png'), img('assets/imagens/nave3.png')],
-    inimigo: [img('assets/imagens/inimigo1.png'), img('assets/imagens/inimigo2.png'), img('assets/imagens/inimigo3.png')],
-    boss: [img('assets/imagens/boss1.png'), img('assets/imagens/boss2.png'), img('assets/imagens/boss3.png')],
-    tiro_nave: img('assets/imagens/tiro_nave.png'),
-    tiro_inimigo: img('assets/imagens/tiro_inimigo.png'),
-    coracao: img('assets/imagens/coracao.png'),
-    powerup_vida: img('assets/imagens/powerup_vida.png'),
-    powerup_tiro: img('assets/imagens/powerup_tiro.png'),
-    powerup_escudo: img('assets/imagens/powerup_escudo.png')
-};
-
-// Sons
+// Carregar sons
 const sons = {
     tiro_nave: new Audio('assets/sounds/tiro_nave.wav'),
     tiro_inimigo: new Audio('assets/sounds/tiro_inimigo.wav'),
     explosao: new Audio('assets/sounds/explosao.wav'),
     powerup: new Audio('assets/sounds/powerup.wav'),
+    vitoria: new Audio('assets/sounds/vitoria.wav'),
     derrota: new Audio('assets/sounds/derrota.wav'),
-    vitoria: new Audio('assets/sounds/vitoria.wav')
 };
 
-// Variáveis
+// Variáveis do jogo
 let fase = 1;
-let vidas = 3;
-let score = 0;
-let nave;
+let vida = 3;
+let pontos = 0;
 let inimigos = [];
 let tiros = [];
 let tirosInimigos = [];
-let powerups = [];
 let boss = null;
 let estrelas = [];
-let fim = false;
-let mensagemFinal = null;
+let powerups = [];
+let inimigosDestruidos = 0;
+let jogando = true;
+let mostrandoMensagemFinal = false;
 
-// Classes
-class Estrela {
-    constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 2;
-        this.vel = Math.random() * 1 + 0.5;
-    }
-
-    atualizar() {
-        this.y += this.vel;
-        if (this.y > canvas.height) {
-            this.y = 0;
-            this.x = Math.random() * canvas.width;
-        }
-    }
-
-    desenhar() {
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-    }
+// Configurações de fase
+function inimigosNecessarios() {
+    return Math.floor(15 * Math.pow(1.4, fase - 1));
 }
 
-class Nave {
-    constructor() {
-        this.x = canvas.width / 2;
-        this.y = canvas.height - 100;
-        this.width = 60;
-        this.height = 60;
-        this.sprite = imagens.nave[Math.min(Math.floor(fase / 7), 2)];
-        this.tiroCooldown = 0;
-    }
-
-    atualizar() {
-        this.tiroCooldown--;
-    }
-
-    desenhar() {
-        ctx.drawImage(this.sprite, this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-    }
-
-    atirar() {
-        if (this.tiroCooldown <= 0) {
-            tiros.push(new Tiro(this.x, this.y - 30, -10, 'nave'));
-            sons.tiro_nave.play();
-            this.tiroCooldown = 15;
-        }
-    }
+function bossVida() {
+    return 30 + fase * 10;
 }
 
-class Inimigo {
-    constructor() {
-        this.x = Math.random() * (canvas.width - 50) + 25;
-        this.y = -50;
-        this.width = 50;
-        this.height = 50;
-        this.sprite = imagens.inimigo[Math.floor(Math.random() * imagens.inimigo.length)];
-        this.vida = 1;
-        this.tiroCooldown = Math.random() * 100 + 50;
-    }
-
-    atualizar() {
-        this.y += 2;
-        this.tiroCooldown--;
-        if (this.tiroCooldown <= 0) {
-            tirosInimigos.push(new Tiro(this.x, this.y + 20, 5, 'inimigo'));
-            sons.tiro_inimigo.play();
-            this.tiroCooldown = Math.random() * 100 + 50;
-        }
-    }
-
-    desenhar() {
-        ctx.drawImage(this.sprite, this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-    }
-}
-
-class Boss extends Inimigo {
-    constructor() {
-        super();
-        this.width = 120;
-        this.height = 120;
-        this.sprite = imagens.boss[Math.min(Math.floor(fase / 7), 2)];
-        this.vida = 10 + Math.floor(fase * 1.5);
-    }
-
-    atualizar() {
-        this.y += 1.5;
-        this.tiroCooldown--;
-        if (this.tiroCooldown <= 0) {
-            tirosInimigos.push(new Tiro(this.x, this.y + 40, 6, 'inimigo'));
-            sons.tiro_inimigo.play();
-            this.tiroCooldown = Math.random() * 80 + 40;
-        }
-    }
-}
-
-class Tiro {
-    constructor(x, y, vel, dono) {
-        this.x = x;
-        this.y = y;
-        this.vel = vel;
-        this.dono = dono;
-        this.width = 10;
-        this.height = 20;
-    }
-
-    atualizar() {
-        this.y += this.vel;
-    }
-
-    desenhar() {
-        const sprite = this.dono === 'nave' ? imagens.tiro_nave : imagens.tiro_inimigo;
-        ctx.drawImage(sprite, this.x - 5, this.y - 10, 10, 20);
-    }
-}
-
-class PowerUp {
-    constructor(tipo) {
-        this.x = Math.random() * (canvas.width - 50) + 25;
-        this.y = -30;
-        this.vel = 3;
-        this.tipo = tipo;
-        this.sprite = imagens[`powerup_${tipo}`];
-    }
-
-    atualizar() {
-        this.y += this.vel;
-    }
-
-    desenhar() {
-        ctx.drawImage(this.sprite, this.x - 15, this.y - 15, 30, 30);
-    }
-}
-
-class MensagemFinal {
-    constructor() {
-        this.x = canvas.width / 2;
-        this.y = -50;
-        this.vel = 2;
-        this.texto = "Você venceu, parabéns ❤️";
-    }
-
-    atualizar() {
-        this.y += this.vel;
-    }
-
-    desenhar() {
-        ctx.font = "40px Arial";
-        ctx.fillStyle = "white";
-        ctx.textAlign = "center";
-        ctx.fillText(this.texto, this.x, this.y);
-    }
-}
-
-// Funções
-function iniciar() {
-    nave = new Nave();
-    inimigos = [];
-    tiros = [];
-    tirosInimigos = [];
-    powerups = [];
-    boss = null;
-    mensagemFinal = null;
-    fim = false;
-
+// Criar fundo de estrelas
+function criarEstrelas() {
+    estrelas = [];
     for (let i = 0; i < 100; i++) {
-        estrelas.push(new Estrela());
+        estrelas.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            tamanho: Math.random() * 2,
+            velocidade: 0.5 + Math.random(),
+        });
     }
 }
 
-function spawnInimigos() {
-    const alvo = Math.floor(15 * Math.pow(1.4, fase - 1));
-    if (inimigos.length < alvo) {
-        inimigos.push(new Inimigo());
-    } else if (!boss) {
-        boss = new Boss();
-    }
-}
-
-function atualizar() {
-    if (mensagemFinal) {
-        mensagemFinal.atualizar();
-        if (mensagemFinal.y > canvas.height + 50) {
-            fase = 1;
-            vidas = 3;
-            iniciar();
+// Desenhar estrelas
+function atualizarEstrelas() {
+    estrelas.forEach(e => {
+        e.y += e.velocidade;
+        if (e.y > canvas.height) {
+            e.y = 0;
+            e.x = Math.random() * canvas.width;
         }
-        return;
-    }
-
-    estrelas.forEach(e => e.atualizar());
-
-    nave.atualizar();
-
-    tiros.forEach(t => t.atualizar());
-    tirosInimigos.forEach(t => t.atualizar());
-    inimigos.forEach(i => i.atualizar());
-    powerups.forEach(p => p.atualizar());
-    if (boss) boss.atualizar();
-
-    spawnInimigos();
+    });
+    estrelas.forEach(e => {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(e.x, e.y, e.tamanho, e.tamanho);
+    });
 }
 
-function desenhar() {
-    ctx.drawImage(imagens.fundo, 0, 0, canvas.width, canvas.height);
-
-    estrelas.forEach(e => e.desenhar());
-
-    nave.desenhar();
-    tiros.forEach(t => t.desenhar());
-    tirosInimigos.forEach(t => t.desenhar());
-    inimigos.forEach(i => i.desenhar());
-    powerups.forEach(p => p.desenhar());
-    if (boss) boss.desenhar();
-
-    ctx.fillStyle = "white";
-    ctx.font = "24px Arial";
-    ctx.fillText(`Fase ${fase}`, 70, 40);
-
-    for (let i = 0; i < vidas; i++) {
-        ctx.drawImage(imagens.coracao, 20 + i * 40, 50, 30, 30);
+// Nave do jogador
+const nave = {
+    x: canvas.width / 2,
+    y: canvas.height - 150,
+    largura: 80,
+    altura: 80,
+    velocidade: 7,
+    imagem: imagens['nave1'],
+    atualizarImagem() {
+        if (fase <= 7) this.imagem = imagens['nave1'];
+        else if (fase <= 14) this.imagem = imagens['nave2'];
+        else this.imagem = imagens['nave3'];
+    },
+    desenhar() {
+        ctx.drawImage(this.imagem, this.x, this.y, this.largura, this.altura);
     }
+};
 
-    if (mensagemFinal) {
-        mensagemFinal.desenhar();
-    }
-}
-
-function loop() {
-    atualizar();
-    desenhar();
-    requestAnimationFrame(loop);
-}
-
+// Controles
 window.addEventListener('mousemove', e => {
-    nave.x = e.clientX;
+    nave.x = e.clientX - nave.largura / 2;
+    nave.y = e.clientY - nave.altura / 2;
 });
 
-window.addEventListener('touchmove', e => {
-    nave.x = e.touches[0].clientX;
-});
+// Tiro da nave
+function atirar() {
+    tiros.push({
+        x: nave.x + nave.largura / 2 - 5,
+        y: nave.y,
+        largura: 10,
+        altura: 20,
+        velocidade: 10
+    });
+    sons.tiro_nave.play();
+}
 
-window.addEventListener('click', () => nave.atirar());
-window.addEventListener('touchstart', () => nave.atirar());
+// Criar inimigos
+function criarInimigo() {
+    const tipos = ['inimigo1', 'inimigo2', 'inimigo3'];
+    const tipo = tipos[Math.floor(Math.random() * tipos.length)];
+    inimigos.push({
+        x: Math.random() * (canvas.width - 60),
+        y: -60,
+        largura: 60,
+        altura: 60,
+        velocidade: 2 + fase * 0.2,
+        vida: Math.floor(3 + fase * 0.5),
+        tipo: tipo,
+    });
+}
 
-iniciar();
-loop();
+// Criar boss
+function criarBoss() {
+    const tipo = fase <= 7 ? 'boss1' : fase <= 14 ? 'boss2' : 'boss3';
+    boss = {
+        x: canvas.width / 2 - 100,
+        y: -200,
+        largura: 200,
+        altura: 200,
+        velocidade: 2 + fase * 0.3,
+        vida: bossVida(),
+        tipo: tipo,
+        tiros: 0
+    };
+}
+
+// Movimentação do boss
+function atualizarBoss() {
+    if (!boss) return;
+    boss.y += boss.velocidade * 0.3;
+    if (boss.y > 100) boss.y = 100;
+    boss.x += Math.sin(Date.now() * 0.002) * boss.velocidade;
+
+    // Atirar
+    if (boss.tiros % 60 === 0) {
+        tirosInimigos.push(
+            { x: boss.x + boss.largura / 2 - 5, y: boss.y + boss.altura, velocidade: 5 }
+        );
+        sons.tiro_inimigo.play();
+    }
+    if (fase === 21 && boss.tiros % 10 === 0) {
+        // Super raio do último boss
+        tirosInimigos.push(
+            { x: boss.x + boss.largura / 2 - 2, y: boss.y + boss.altura, velocidade: 10, super: true }
+        );
+    }
+    boss.tiros++;
+}
+
+// Atualizar e desenhar elementos
+function atualizar() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(imagens['fundo_estrelado'], 0, 0, canvas.width, canvas.height);
+    atualizarEstrelas();
+
+    nave.atualizarImagem();
+    nave.desenhar();
+
+    tiros.forEach(t => {
+        t.y -= t.velocidade;
+        ctx.drawImage(imagens['tiro_nave'], t.x, t.y, t.largura, t.altura);
+    });
+    tiros = tiros.filter(t => t.y > 0);
+
+    inimigos.forEach(inimigo => {
+        inimigo.y += inimigo.velocidade;
+        ctx.drawImage(imagens[inimigo.tipo], inimigo.x, inimigo.y, inimigo.largura, inimigo.altura);
+    });
+
+    atualizarBoss();
+    if (boss) {
+        ctx.drawImage(imagens[boss.tipo], boss.x, boss.y, boss.largura, boss.altura);
+    }
+
+    // Desenhar tiros inimigos
+    tirosInimigos.forEach(t => {
+        t.y += t.velocidade;
+        ctx.drawImage(imagens['tiro_inimigo'], t.x, t.y, 10, t.super ? 50 : 20);
+    });
+
+    // Colisões
+    // (Aqui entraria a lógica de colisão simplificada)
+
+    // UI
+    ctx.fillStyle = 'white';
+    ctx.font = '30px Arial';
+    ctx.fillText(`Fase: ${fase}`, 20, 40);
+    ctx.fillText('❤️'.repeat(vida), 20, 80);
+
+    requestAnimationFrame(atualizar);
+}
+
+// Inicializar jogo
+function iniciarJogo() {
+    criarEstrelas();
+    setInterval(() => {
+        if (!boss && inimigosDestruidos < inimigosNecessarios()) {
+            criarInimigo();
+        } else if (!boss && inimigosDestruidos >= inimigosNecessarios()) {
+            criarBoss();
+        }
+    }, 800);
+
+    setInterval(atirar, 500);
+    atualizar();
+}
+
+iniciarJogo();
