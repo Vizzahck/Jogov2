@@ -6,7 +6,13 @@ canvas.height = window.innerHeight;
 
 // Carregar imagens
 const imagens = {};
-const nomesImagens = ['nave1', 'nave2', 'nave3', 'boss1', 'boss2', 'boss3', 'coracao', 'fundo_estrelado', 'inimigo1', 'inimigo2', 'inimigo3', 'powerup_escudo', 'powerup_tiro', 'powerup_vida', 'tiro_nave', 'tiro_inimigo'];
+const nomesImagens = [
+    'nave1', 'nave2', 'nave3',
+    'boss1', 'boss2', 'boss3',
+    'coracao', 'inimigo1', 'inimigo2', 'inimigo3',
+    'powerup_escudo', 'powerup_tiro', 'powerup_vida',
+    'tiro_nave', 'tiro_inimigo'
+];
 nomesImagens.forEach(nome => {
     const img = new Image();
     img.src = `assets/imagens/${nome}.png`;
@@ -20,24 +26,22 @@ const sons = {
     explosao: new Audio('assets/sounds/explosao.wav'),
     powerup: new Audio('assets/sounds/powerup.wav'),
     vitoria: new Audio('assets/sounds/vitoria.wav'),
-    derrota: new Audio('assets/sounds/derrota.wav'),
+    derrota: new Audio('assets/sounds/derrota.wav')
 };
 
 // Variáveis do jogo
 let fase = 1;
 let vida = 3;
-let pontos = 0;
 let inimigos = [];
 let tiros = [];
 let tirosInimigos = [];
 let boss = null;
 let estrelas = [];
-let powerups = [];
 let inimigosDestruidos = 0;
 let jogando = true;
 let mostrandoMensagemFinal = false;
 
-// Configurações de fase
+// Funções auxiliares
 function inimigosNecessarios() {
     return Math.floor(15 * Math.pow(1.4, fase - 1));
 }
@@ -54,7 +58,7 @@ function criarEstrelas() {
             x: Math.random() * canvas.width,
             y: Math.random() * canvas.height,
             tamanho: Math.random() * 2,
-            velocidade: 0.5 + Math.random(),
+            velocidade: 0.5 + Math.random()
         });
     }
 }
@@ -74,7 +78,7 @@ function atualizarEstrelas() {
     });
 }
 
-// Nave do jogador
+// Nave
 const nave = {
     x: canvas.width / 2,
     y: canvas.height - 150,
@@ -122,6 +126,7 @@ function criarInimigo() {
         velocidade: 2 + fase * 0.2,
         vida: Math.floor(3 + fase * 0.5),
         tipo: tipo,
+        tiroTimer: Math.random() * 100
     });
 }
 
@@ -140,70 +145,140 @@ function criarBoss() {
     };
 }
 
-// Movimentação do boss
+// Movimentação e ataque do boss
 function atualizarBoss() {
     if (!boss) return;
     boss.y += boss.velocidade * 0.3;
     if (boss.y > 100) boss.y = 100;
-    boss.x += Math.sin(Date.now() * 0.002) * boss.velocidade;
+    boss.x += Math.sin(Date.now() * 0.002) * boss.velocidade * 3;
 
-    // Atirar
-    if (boss.tiros % 60 === 0) {
-        tirosInimigos.push(
-            { x: boss.x + boss.largura / 2 - 5, y: boss.y + boss.altura, velocidade: 5 }
-        );
+    // Atirar múltiplos tiros
+    if (boss.tiros % 20 === 0) {
+        for (let i = -1; i <= 1; i++) {
+            tirosInimigos.push({
+                x: boss.x + boss.largura / 2 + i * 30,
+                y: boss.y + boss.altura,
+                velocidade: 5,
+                super: false
+            });
+        }
         sons.tiro_inimigo.play();
     }
+
     if (fase === 21 && boss.tiros % 10 === 0) {
-        // Super raio do último boss
-        tirosInimigos.push(
-            { x: boss.x + boss.largura / 2 - 2, y: boss.y + boss.altura, velocidade: 10, super: true }
-        );
+        // Super raio
+        tirosInimigos.push({
+            x: boss.x + boss.largura / 2 - 2,
+            y: boss.y + boss.altura,
+            velocidade: 10,
+            super: true
+        });
     }
     boss.tiros++;
 }
 
-// Atualizar e desenhar elementos
+// Atualizar inimigos
+function atualizarInimigos() {
+    inimigos.forEach(inimigo => {
+        inimigo.y += inimigo.velocidade;
+        inimigo.x += Math.sin(Date.now() * 0.003 + inimigo.y * 0.01) * 2;
+
+        inimigo.tiroTimer--;
+        if (inimigo.tiroTimer <= 0) {
+            tirosInimigos.push({
+                x: inimigo.x + inimigo.largura / 2 - 5,
+                y: inimigo.y + inimigo.altura,
+                velocidade: 5,
+                super: false
+            });
+            sons.tiro_inimigo.play();
+            inimigo.tiroTimer = 100 + Math.random() * 100;
+        }
+    });
+}
+
+// Checar colisões
+function colisao(a, b) {
+    return (
+        a.x < b.x + b.largura &&
+        a.x + a.largura > b.x &&
+        a.y < b.y + b.altura &&
+        a.y + a.altura > b.y
+    );
+}
+
+// Atualizar e desenhar tudo
 function atualizar() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(imagens['fundo_estrelado'], 0, 0, canvas.width, canvas.height);
+
     atualizarEstrelas();
 
     nave.atualizarImagem();
     nave.desenhar();
 
+    // Tiros da nave
     tiros.forEach(t => {
         t.y -= t.velocidade;
         ctx.drawImage(imagens['tiro_nave'], t.x, t.y, t.largura, t.altura);
     });
     tiros = tiros.filter(t => t.y > 0);
 
+    // Inimigos
+    atualizarInimigos();
     inimigos.forEach(inimigo => {
-        inimigo.y += inimigo.velocidade;
         ctx.drawImage(imagens[inimigo.tipo], inimigo.x, inimigo.y, inimigo.largura, inimigo.altura);
+
+        // Colisão inimigo x nave
+        if (colisao(inimigo, nave)) {
+            vida--;
+            inimigos.splice(inimigos.indexOf(inimigo), 1);
+            sons.explosao.play();
+            if (vida <= 0) {
+                reiniciarFase();
+                return;
+            }
+        }
     });
 
+    // Boss
     atualizarBoss();
     if (boss) {
         ctx.drawImage(imagens[boss.tipo], boss.x, boss.y, boss.largura, boss.altura);
     }
 
-    // Desenhar tiros inimigos
+    // Tiros inimigos
     tirosInimigos.forEach(t => {
         t.y += t.velocidade;
         ctx.drawImage(imagens['tiro_inimigo'], t.x, t.y, 10, t.super ? 50 : 20);
+
+        if (colisao(t, nave)) {
+            vida--;
+            tirosInimigos.splice(tirosInimigos.indexOf(t), 1);
+            sons.explosao.play();
+            if (vida <= 0) {
+                reiniciarFase();
+                return;
+            }
+        }
     });
 
-    // Colisões
-    // (Aqui entraria a lógica de colisão simplificada)
-
-    // UI
+    // Interface
     ctx.fillStyle = 'white';
     ctx.font = '30px Arial';
     ctx.fillText(`Fase: ${fase}`, 20, 40);
     ctx.fillText('❤️'.repeat(vida), 20, 80);
 
     requestAnimationFrame(atualizar);
+}
+
+// Reiniciar fase
+function reiniciarFase() {
+    vida = 3;
+    inimigos = [];
+    tiros = [];
+    tirosInimigos = [];
+    boss = null;
+    inimigosDestruidos = 0;
 }
 
 // Inicializar jogo
