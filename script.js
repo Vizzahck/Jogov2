@@ -4,271 +4,339 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// Carregar imagens
-const imagens = {};
-const nomesImagens = [
-    'nave1', 'nave2', 'nave3',
-    'boss1', 'boss2', 'boss3',
-    'coracao', 'inimigo1', 'inimigo2', 'inimigo3',
-    'powerup_escudo', 'powerup_tiro', 'powerup_vida',
-    'tiro_nave', 'tiro_inimigo'
-];
-nomesImagens.forEach(nome => {
+// Carregamento de imagens
+function loadImage(src) {
     const img = new Image();
-    img.src = `assets/imagens/${nome}.png`;
-    imagens[nome] = img;
-});
+    img.src = src;
+    return img;
+}
 
-// Carregar sons
-const sons = {
-    tiro_nave: new Audio('assets/sounds/tiro_nave.wav'),
-    tiro_inimigo: new Audio('assets/sounds/tiro_inimigo.wav'),
-    explosao: new Audio('assets/sounds/explosao.wav'),
-    powerup: new Audio('assets/sounds/powerup.wav'),
-    vitoria: new Audio('assets/sounds/vitoria.wav'),
-    derrota: new Audio('assets/sounds/derrota.wav')
+const imagens = {
+    fundo: loadImage(''),
+    nave: [loadImage('assets/imagens/nave1.png'), loadImage('assets/imagens/nave2.png'), loadImage('assets/imagens/nave3.png')],
+    inimigos: [loadImage('assets/imagens/inimigo1.png'), loadImage('assets/imagens/inimigo2.png'), loadImage('assets/imagens/inimigo3.png')],
+    boss: [loadImage('assets/imagens/boss1.png'), loadImage('assets/imagens/boss2.png'), loadImage('assets/imagens/boss3.png')],
+    coracao: loadImage('assets/imagens/coracao.png'),
+    tiro_nave: loadImage('assets/imagens/tiro_nave.png'),
+    tiro_inimigo: loadImage('assets/imagens/tiro_inimigo.png'),
+    powerups: [
+        loadImage('assets/imagens/powerup_vida.png'),
+        loadImage('assets/imagens/powerup_tiro.png'),
+        loadImage('assets/imagens/powerup_escudo.png')
+    ]
 };
 
-// Variáveis do jogo
+// Sons
+function loadSound(src) {
+    const audio = new Audio(src);
+    return audio;
+}
+
+const sons = {
+    tiro_nave: loadSound('assets/sounds/tiro_nave.wav'),
+    tiro_inimigo: loadSound('assets/sounds/tiro_inimigo.wav'),
+    explosao: loadSound('assets/sounds/explosao.wav'),
+    powerup: loadSound('assets/sounds/powerup.wav'),
+    vitoria: loadSound('assets/sounds/vitoria.wav'),
+    derrota: loadSound('assets/sounds/derrota.wav')
+};
+
+// Efeito de estrelas
+let estrelas = [];
+for (let i = 0; i < 150; i++) {
+    estrelas.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        tamanho: Math.random() * 2,
+        velocidade: Math.random() * 2 + 0.5
+    });
+}
+
+function desenharEstrelas() {
+    ctx.fillStyle = 'white';
+    estrelas.forEach(estrela => {
+        ctx.beginPath();
+        ctx.arc(estrela.x, estrela.y, estrela.tamanho, 0, Math.PI * 2);
+        ctx.fill();
+
+        estrela.y += estrela.velocidade;
+        if (estrela.y > canvas.height) {
+            estrela.y = 0;
+            estrela.x = Math.random() * canvas.width;
+        }
+    });
+}
+
+// Variáveis principais do jogo
 let fase = 1;
 let vida = 3;
+let pontos = 0;
 let inimigos = [];
 let tiros = [];
 let tirosInimigos = [];
+let powerups = [];
 let boss = null;
-let estrelas = [];
-let inimigosDestruidos = 0;
-let jogando = true;
-let mostrandoMensagemFinal = false;
+let derrotouBoss = false;
+let inimigosMortos = 0;
+let jogoRodando = true;
 
-// Funções auxiliares
-function inimigosNecessarios() {
-    return Math.floor(15 * Math.pow(1.4, fase - 1));
-}
-
-function bossVida() {
-    return 30 + fase * 10;
-}
-
-// Criar fundo de estrelas
-function criarEstrelas() {
-    estrelas = [];
-    for (let i = 0; i < 100; i++) {
-        estrelas.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            tamanho: Math.random() * 2,
-            velocidade: 0.5 + Math.random()
-        });
-    }
-}
-
-// Desenhar estrelas
-function atualizarEstrelas() {
-    estrelas.forEach(e => {
-        e.y += e.velocidade;
-        if (e.y > canvas.height) {
-            e.y = 0;
-            e.x = Math.random() * canvas.width;
-        }
-    });
-    estrelas.forEach(e => {
-        ctx.fillStyle = 'white';
-        ctx.fillRect(e.x, e.y, e.tamanho, e.tamanho);
-    });
-}
-
-// Nave
+// Jogador
 const nave = {
-    x: canvas.width / 2,
-    y: canvas.height - 150,
-    largura: 80,
-    altura: 80,
-    velocidade: 7,
-    imagem: imagens['nave1'],
-    atualizarImagem() {
-        if (fase <= 7) this.imagem = imagens['nave1'];
-        else if (fase <= 14) this.imagem = imagens['nave2'];
-        else this.imagem = imagens['nave3'];
-    },
-    desenhar() {
-        ctx.drawImage(this.imagem, this.x, this.y, this.largura, this.altura);
-    }
+    x: canvas.width / 2 - 40,
+    y: canvas.height - 120,
+    width: 80,
+    height: 80,
+    velocidade: 8,
+    atirarCooldown: 0
 };
 
-// Controles
-window.addEventListener('mousemove', e => {
-    nave.x = e.clientX - nave.largura / 2;
-    nave.y = e.clientY - nave.altura / 2;
+// Controles de toque
+let toqueX = canvas.width / 2;
+
+// Eventos
+canvas.addEventListener('touchmove', (e) => {
+    const toque = e.touches[0];
+    toqueX = toque.clientX;
 });
 
-// Tiro da nave
-function atirar() {
-    tiros.push({
-        x: nave.x + nave.largura / 2 - 5,
-        y: nave.y,
-        largura: 10,
-        altura: 20,
-        velocidade: 10
-    });
-    sons.tiro_nave.play();
-}
-
-// Criar inimigos
-function criarInimigo() {
-    const tipos = ['inimigo1', 'inimigo2', 'inimigo3'];
-    const tipo = tipos[Math.floor(Math.random() * tipos.length)];
-    inimigos.push({
+// Lógica dos inimigos
+function gerarInimigos() {
+    if (boss || inimigos.length >= 5) return;
+    const inimigo = {
         x: Math.random() * (canvas.width - 60),
         y: -60,
-        largura: 60,
-        altura: 60,
+        width: 60,
+        height: 60,
+        vida: 2 + fase,
         velocidade: 2 + fase * 0.2,
-        vida: Math.floor(3 + fase * 0.5),
-        tipo: tipo,
-        tiroTimer: Math.random() * 100
-    });
+        imagem: imagens.inimigos[Math.floor(Math.random() * imagens.inimigos.length)],
+        atirarCooldown: Math.random() * 100 + 50
+    };
+    inimigos.push(inimigo);
 }
 
-// Criar boss
-function criarBoss() {
-    const tipo = fase <= 7 ? 'boss1' : fase <= 14 ? 'boss2' : 'boss3';
+// Boss
+function gerarBoss() {
     boss = {
-        x: canvas.width / 2 - 100,
-        y: -200,
-        largura: 200,
-        altura: 200,
-        velocidade: 2 + fase * 0.3,
-        vida: bossVida(),
-        tipo: tipo,
-        tiros: 0
+        x: canvas.width / 2 - 120,
+        y: 50,
+        width: 240,
+        height: 240,
+        vida: 50 + fase * 10,
+        velocidade: 2 + fase * 0.5,
+        imagem: imagens.boss[(fase - 1) % imagens.boss.length],
+        direcaoX: 1,
+        direcaoY: 1,
+        tiroCooldown: 60,
+        superRaioCooldown: 600
     };
 }
 
-// Movimentação e ataque do boss
-function atualizarBoss() {
-    if (!boss) return;
-    boss.y += boss.velocidade * 0.3;
-    if (boss.y > 100) boss.y = 100;
-    boss.x += Math.sin(Date.now() * 0.002) * boss.velocidade * 3;
+// Power-ups
+function gerarPowerup(x, y) {
+    const tipo = Math.floor(Math.random() * imagens.powerups.length);
+    powerups.push({
+        x,
+        y,
+        width: 40,
+        height: 40,
+        tipo,
+        imagem: imagens.powerups[tipo]
+    });
+}
 
-    // Atirar múltiplos tiros
-    if (boss.tiros % 20 === 0) {
-        for (let i = -1; i <= 1; i++) {
-            tirosInimigos.push({
-                x: boss.x + boss.largura / 2 + i * 30,
-                y: boss.y + boss.altura,
-                velocidade: 5,
-                super: false
-            });
-        }
-        sons.tiro_inimigo.play();
-    }
-
-    if (fase === 21 && boss.tiros % 10 === 0) {
-        // Super raio
-        tirosInimigos.push({
-            x: boss.x + boss.largura / 2 - 2,
-            y: boss.y + boss.altura,
-            velocidade: 10,
-            super: true
+// Tiro do jogador
+function atirar() {
+    if (nave.atirarCooldown <= 0) {
+        sons.tiro_nave.play();
+        tiros.push({
+            x: nave.x + nave.width / 2 - 5,
+            y: nave.y,
+            width: 10,
+            height: 20
         });
+        nave.atirarCooldown = 20;
     }
-    boss.tiros++;
 }
 
-// Atualizar inimigos
-function atualizarInimigos() {
-    inimigos.forEach(inimigo => {
-        inimigo.y += inimigo.velocidade;
-        inimigo.x += Math.sin(Date.now() * 0.003 + inimigo.y * 0.01) * 2;
-
-        inimigo.tiroTimer--;
-        if (inimigo.tiroTimer <= 0) {
-            tirosInimigos.push({
-                x: inimigo.x + inimigo.largura / 2 - 5,
-                y: inimigo.y + inimigo.altura,
-                velocidade: 5,
-                super: false
-            });
-            sons.tiro_inimigo.play();
-            inimigo.tiroTimer = 100 + Math.random() * 100;
-        }
-    });
-}
-
-// Checar colisões
-function colisao(a, b) {
-    return (
-        a.x < b.x + b.largura &&
-        a.x + a.largura > b.x &&
-        a.y < b.y + b.altura &&
-        a.y + a.altura > b.y
-    );
-}
-
-// Atualizar e desenhar tudo
+// Loop principal
 function atualizar() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!jogoRodando) return;
 
-    atualizarEstrelas();
+    // Estrelas
+    desenharEstrelas();
 
-    nave.atualizarImagem();
-    nave.desenhar();
+    // Movimentação da nave
+    if (toqueX < nave.x + nave.width / 2) {
+        nave.x -= nave.velocidade;
+    } else if (toqueX > nave.x + nave.width / 2) {
+        nave.x += nave.velocidade;
+    }
+    nave.x = Math.max(0, Math.min(canvas.width - nave.width, nave.x));
 
-    // Tiros da nave
-    tiros.forEach(t => {
-        t.y -= t.velocidade;
-        ctx.drawImage(imagens['tiro_nave'], t.x, t.y, t.largura, t.altura);
+    // Atirar
+    nave.atirarCooldown--;
+    atirar();
+
+    // Tiros do jogador
+    tiros.forEach((tiro, index) => {
+        tiro.y -= 10;
+        if (tiro.y < 0) tiros.splice(index, 1);
     });
-    tiros = tiros.filter(t => t.y > 0);
 
     // Inimigos
-    atualizarInimigos();
-    inimigos.forEach(inimigo => {
-        ctx.drawImage(imagens[inimigo.tipo], inimigo.x, inimigo.y, inimigo.largura, inimigo.altura);
+    if (inimigosMortos < 15 + Math.floor(fase * 0.4)) {
+        gerarInimigos();
+    } else if (!boss) {
+        gerarBoss();
+    }
 
-        // Colisão inimigo x nave
-        if (colisao(inimigo, nave)) {
+    inimigos.forEach((ini, i) => {
+        ini.y += ini.velocidade;
+        ini.atirarCooldown--;
+        if (ini.atirarCooldown <= 0) {
+            tirosInimigos.push({
+                x: ini.x + ini.width / 2 - 5,
+                y: ini.y + ini.height,
+                width: 10,
+                height: 20
+            });
+            sons.tiro_inimigo.play();
+            ini.atirarCooldown = Math.random() * 100 + 50;
+        }
+
+        // Colisão com nave
+        if (colide(ini, nave)) {
             vida--;
-            inimigos.splice(inimigos.indexOf(inimigo), 1);
             sons.explosao.play();
-            if (vida <= 0) {
-                reiniciarFase();
-                return;
-            }
+            inimigos.splice(i, 1);
+        }
+
+        if (ini.y > canvas.height) {
+            inimigos.splice(i, 1);
+        }
+    });
+
+    // Tiros inimigos
+    tirosInimigos.forEach((tiro, i) => {
+        tiro.y += 7;
+        if (colide(tiro, nave)) {
+            vida--;
+            tirosInimigos.splice(i, 1);
+            sons.explosao.play();
+        } else if (tiro.y > canvas.height) {
+            tirosInimigos.splice(i, 1);
         }
     });
 
     // Boss
-    atualizarBoss();
     if (boss) {
-        ctx.drawImage(imagens[boss.tipo], boss.x, boss.y, boss.largura, boss.altura);
+        boss.x += boss.direcaoX * boss.velocidade;
+        boss.y += boss.direcaoY * boss.velocidade * 0.5;
+
+        if (boss.x <= 0 || boss.x + boss.width >= canvas.width) boss.direcaoX *= -1;
+        if (boss.y <= 0 || boss.y + boss.height >= canvas.height / 2) boss.direcaoY *= -1;
+
+        boss.tiroCooldown--;
+        if (boss.tiroCooldown <= 0) {
+            for (let j = -1; j <= 1; j++) {
+                tirosInimigos.push({
+                    x: boss.x + boss.width / 2 + j * 20,
+                    y: boss.y + boss.height,
+                    width: 10,
+                    height: 20
+                });
+            }
+            sons.tiro_inimigo.play();
+            boss.tiroCooldown = 60;
+        }
+
+        boss.superRaioCooldown--;
+        if (boss.superRaioCooldown <= 0) {
+            for (let k = 0; k < 5; k++) {
+                tirosInimigos.push({
+                    x: boss.x + (k * boss.width / 5),
+                    y: boss.y + boss.height,
+                    width: 10,
+                    height: 40
+                });
+            }
+            boss.superRaioCooldown = 600;
+        }
+    }
+
+    // Verificar vida da nave
+    if (vida <= 0) {
+        sons.derrota.play();
+        reiniciarFase();
+    }
+
+    // Verificar vitória da fase
+    if (boss && boss.vida <= 0) {
+        boss = null;
+        inimigos = [];
+        tiros = [];
+        tirosInimigos = [];
+        powerups = [];
+        inimigosMortos = 0;
+        derrotouBoss = true;
+        fase++;
+        if (fase > 21) {
+            mostrarMensagemFinal();
+        }
+    }
+
+    desenhar();
+    requestAnimationFrame(atualizar);
+}
+
+// Desenhar elementos
+function desenhar() {
+    // Fundo já desenhado pelas estrelas
+
+    // Nave
+    ctx.drawImage(imagens.nave[(fase - 1) % imagens.nave.length], nave.x, nave.y, nave.width, nave.height);
+
+    // Tiros
+    tiros.forEach(tiro => {
+        ctx.drawImage(imagens.tiro_nave, tiro.x, tiro.y, tiro.width, tiro.height);
+    });
+
+    // Inimigos
+    inimigos.forEach(ini => {
+        ctx.drawImage(ini.imagem, ini.x, ini.y, ini.width, ini.height);
+    });
+
+    // Boss
+    if (boss) {
+        ctx.drawImage(boss.imagem, boss.x, boss.y, boss.width, boss.height);
     }
 
     // Tiros inimigos
-    tirosInimigos.forEach(t => {
-        t.y += t.velocidade;
-        ctx.drawImage(imagens['tiro_inimigo'], t.x, t.y, 10, t.super ? 50 : 20);
-
-        if (colisao(t, nave)) {
-            vida--;
-            tirosInimigos.splice(tirosInimigos.indexOf(t), 1);
-            sons.explosao.play();
-            if (vida <= 0) {
-                reiniciarFase();
-                return;
-            }
-        }
+    tirosInimigos.forEach(tiro => {
+        ctx.drawImage(imagens.tiro_inimigo, tiro.x, tiro.y, tiro.width, tiro.height);
     });
 
-    // Interface
-    ctx.fillStyle = 'white';
-    ctx.font = '30px Arial';
-    ctx.fillText(`Fase: ${fase}`, 20, 40);
-    ctx.fillText('❤️'.repeat(vida), 20, 80);
+    // Power-ups
+    powerups.forEach(pw => {
+        ctx.drawImage(pw.imagem, pw.x, pw.y, pw.width, pw.height);
+    });
 
-    requestAnimationFrame(atualizar);
+    // HUD
+    for (let i = 0; i < vida; i++) {
+        ctx.drawImage(imagens.coracao, 10 + i * 40, 10, 30, 30);
+    }
+    ctx.fillStyle = 'white';
+    ctx.font = '24px Arial';
+    ctx.fillText(`Fase ${fase}`, canvas.width - 120, 40);
+}
+
+// Colisão
+function colide(a, b) {
+    return a.x < b.x + b.width &&
+           a.x + a.width > b.x &&
+           a.y < b.y + b.height &&
+           a.y + a.height > b.y;
 }
 
 // Reiniciar fase
@@ -277,23 +345,46 @@ function reiniciarFase() {
     inimigos = [];
     tiros = [];
     tirosInimigos = [];
+    powerups = [];
     boss = null;
-    inimigosDestruidos = 0;
+    inimigosMortos = 0;
 }
 
-// Inicializar jogo
-function iniciarJogo() {
-    criarEstrelas();
-    setInterval(() => {
-        if (!boss && inimigosDestruidos < inimigosNecessarios()) {
-            criarInimigo();
-        } else if (!boss && inimigosDestruidos >= inimigosNecessarios()) {
-            criarBoss();
+// Mensagem final
+function mostrarMensagemFinal() {
+    sons.vitoria.play();
+    const msg = {
+        x: canvas.width / 2 - 150,
+        y: -100,
+        width: 300,
+        height: 100,
+        texto: 'Você venceu, parabéns!'
+    };
+
+    function animarMensagem() {
+        desenharEstrelas();
+        msg.y += 4;
+        ctx.fillStyle = 'white';
+        ctx.font = '30px Arial';
+        ctx.fillText(msg.texto, msg.x, msg.y);
+
+        if (msg.y < canvas.height / 2) {
+            requestAnimationFrame(animarMensagem);
+        } else {
+            setTimeout(() => {
+                fase = 1;
+                vida = 3;
+                inimigos = [];
+                tiros = [];
+                tirosInimigos = [];
+                powerups = [];
+                boss = null;
+                inimigosMortos = 0;
+                atualizar();
+            }, 3000);
         }
-    }, 800);
-
-    setInterval(atirar, 500);
-    atualizar();
+    }
+    animarMensagem();
 }
 
-iniciarJogo();
+atualizar();
