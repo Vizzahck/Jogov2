@@ -5,12 +5,31 @@
 }
 
 body {
+    background: black;
     overflow: hidden;
-    background-color: black;
 }
 
 canvas {
     display: block;
     margin: 0 auto;
     background-color: black;
+}
+
+#fase, #vida {
+    position: absolute;
+    color: white;
+    font-size: 24px;
+    font-family: sans-serif;
+    top: 10px;
+    padding: 5px 10px;
+    background-color: rgba(0,0,0,0.5);
+    border-radius: 10px;
+}
+
+#fase {
+    left: 10px;
+}
+
+#vida {
+    right: 10px;
 }
