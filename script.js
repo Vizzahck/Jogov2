@@ -4,206 +4,240 @@ const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// Destravar som no primeiro toque
-let somDestravado = false;
-canvas.addEventListener('touchstart', () => {
-    if (!somDestravado) {
-        for (const key in sons) {
-            sons[key].play().catch(() => {});
-            sons[key].pause();
-            sons[key].currentTime = 0;
-        }
-        somDestravado = true;
-    }
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 });
 
-// Carregar imagens (mantenha as imagens no diretório correto)
-function loadImage(src) {
+// 📦 Carregar imagens
+const imagens = {};
+const nomesImagens = [
+    'nave1', 'nave2', 'nave3', 'boss1', 'boss2', 'boss3', 'coracao',
+    'fundo_estrelado', 'inimigo1', 'inimigo2', 'inimigo3',
+    'powerup_escudo', 'powerup_tiro', 'powerup_vida',
+    'tiro_nave', 'tiro_inimigo'
+];
+
+nomesImagens.forEach(nome => {
     const img = new Image();
-    img.src = src;
-    return img;
-}
+    img.src = `assets/imagens/${nome}.png`;
+    imagens[nome] = img;
+});
 
-// Sons
-function loadSound(src) {
-    const audio = new Audio(src);
-    return audio;
-}
+// 🎧 Sons
+const sons = {};
+const nomesSons = [
+    'derrota', 'explosao', 'powerup',
+    'tiro_inimigo', 'tiro_nave', 'vitoria'
+];
 
-// Imagens
-const imagens = {
-    nave: loadImage('assets/imagens/nave1.png'),
-    inimigo: loadImage('assets/imagens/inimigo1.png'),
-    tiro: loadImage('assets/imagens/tiro_nave.png'),
-    tiroInimigo: loadImage('assets/imagens/tiro_inimigo.png'),
-    boss: loadImage('assets/imagens/boss1.png'),
-    coracao: loadImage('assets/imagens/coracao.png')
+nomesSons.forEach(nome => {
+    const audio = new Audio(`assets/sounds/${nome}.wav`);
+    audio.volume = 0.5;
+    sons[nome] = audio;
+});
+
+// 🚀 Nave
+const nave = {
+    x: canvas.width / 2,
+    y: canvas.height - 150,
+    width: 80,
+    height: 80,
+    speed: 10,
+    img: imagens['nave1'],
+    vida: 100
 };
 
-// Sons
-const sons = {
-    tiro: loadSound('assets/sounds/tiro_nave.wav'),
-    explosao: loadSound('assets/sounds/explosao.wav'),
-    derrota: loadSound('assets/sounds/derrota.wav'),
-    vitoria: loadSound('assets/sounds/vitoria.wav'),
-    tiro_inimigo: loadSound('assets/sounds/tiro_inimigo.wav')
-};
+// 🎯 Controles
+let toque = false;
+canvas.addEventListener('touchstart', (e) => {
+    toque = true;
+    nave.x = e.touches[0].clientX - nave.width / 2;
+    nave.y = e.touches[0].clientY - nave.height / 2;
+});
+canvas.addEventListener('touchmove', (e) => {
+    nave.x = e.touches[0].clientX - nave.width / 2;
+    nave.y = e.touches[0].clientY - nave.height / 2;
+});
+canvas.addEventListener('touchend', () => {
+    toque = false;
+});
 
-// Estrelas do fundo
+// 🔫 Tiros
+const tiros = [];
+function atirar() {
+    tiros.push({
+        x: nave.x + nave.width / 2 - 5,
+        y: nave.y,
+        width: 10,
+        height: 20,
+        speed: 15
+    });
+    sons.tiro_nave.currentTime = 0;
+    sons.tiro_nave.play();
+}
+setInterval(atirar, 500);
+
+// 🛸 Inimigos
+const inimigos = [];
+let fase = 1;
+let mortosNaFase = 0;
+let limiteInimigos = 15;
+let bossApareceu = false;
+
+// ❤️ Vida
+let vida = 100;
+
+// 🌌 Fundo
 let estrelas = [];
-for (let i = 0; i < 150; i++) {
+for (let i = 0; i < 100; i++) {
     estrelas.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        tamanho: Math.random() * 2,
-        velocidade: Math.random() * 2 + 0.5
+        size: Math.random() * 2,
+        speed: Math.random() * 2 + 1
     });
 }
 
-function desenharEstrelas() {
+// 🔥 Loop principal
+function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Fundo
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'white';
     estrelas.forEach(estrela => {
         ctx.beginPath();
-        ctx.arc(estrela.x, estrela.y, estrela.tamanho, 0, Math.PI * 2);
+        ctx.arc(estrela.x, estrela.y, estrela.size, 0, Math.PI * 2);
         ctx.fill();
-
-        estrela.y += estrela.velocidade;
-        if (estrela.y > canvas.height) {
-            estrela.y = 0;
-            estrela.x = Math.random() * canvas.width;
-        }
+        estrela.y += estrela.speed;
+        if (estrela.y > canvas.height) estrela.y = 0;
     });
-}
 
-// Jogador
-const nave = {
-    x: canvas.width / 2 - 40,
-    y: canvas.height - 120,
-    width: 80,
-    height: 80,
-    velocidade: 10,
-    tiroCooldown: 0
-};
+    // Nave
+    ctx.drawImage(nave.img, nave.x, nave.y, nave.width, nave.height);
 
-// Controles
-let toqueX = nave.x + nave.width / 2;
-
-// Evento para movimentar
-canvas.addEventListener('touchmove', (e) => {
-    const toque = e.touches[0];
-    toqueX = toque.clientX;
-});
-
-// Listas
-let tiros = [];
-let inimigos = [];
-let tirosInimigos = [];
-
-// HUD
-let vida = 3;
-let fase = 1;
-
-// Loop principal
-function atualizar() {
-    desenharEstrelas();
-
-    // Movimentar nave
-    if (toqueX < nave.x + nave.width / 2) {
-        nave.x -= nave.velocidade;
-    } else if (toqueX > nave.x + nave.width / 2) {
-        nave.x += nave.velocidade;
-    }
-    nave.x = Math.max(0, Math.min(canvas.width - nave.width, nave.x));
-
-    // Atirar
-    nave.tiroCooldown--;
-    if (nave.tiroCooldown <= 0) {
-        tiros.push({ x: nave.x + nave.width / 2 - 5, y: nave.y });
-        sons.tiro.play();
-        nave.tiroCooldown = 15;
-    }
-
-    // Atualizar tiros
+    // Tiros
     tiros.forEach((tiro, index) => {
-        tiro.y -= 12;
+        ctx.drawImage(imagens.tiro_nave, tiro.x, tiro.y, tiro.width, tiro.height);
+        tiro.y -= tiro.speed;
         if (tiro.y < 0) tiros.splice(index, 1);
     });
 
-    // Gerar inimigos
-    if (inimigos.length < 5) {
+    // Inimigos
+    if (!bossApareceu && mortosNaFase < limiteInimigos) {
+        if (Math.random() < 0.02) {
+            const tipo = Math.floor(Math.random() * 3) + 1;
+            inimigos.push({
+                x: Math.random() * (canvas.width - 80),
+                y: -80,
+                width: 80,
+                height: 80,
+                speed: 3 + fase * 0.3,
+                vida: 10 + fase * 2,
+                img: imagens[`inimigo${tipo}`]
+            });
+        }
+    }
+
+    if (!bossApareceu && mortosNaFase >= limiteInimigos) {
+        bossApareceu = true;
+        const bossTipo = Math.floor(Math.random() * 3) + 1;
         inimigos.push({
-            x: Math.random() * (canvas.width - 60),
-            y: -60,
-            vida: 2,
-            velocidade: 3
+            x: canvas.width / 2 - 150,
+            y: 50,
+            width: 300,
+            height: 300,
+            speed: 2,
+            vida: 200 + fase * 20,
+            img: imagens[`boss${bossTipo}`],
+            boss: true
         });
     }
 
-    // Atualizar inimigos
-    inimigos.forEach((ini, i) => {
-        ini.y += ini.velocidade;
+    inimigos.forEach((inimigo, i) => {
+        inimigo.y += inimigo.speed;
+        ctx.drawImage(inimigo.img, inimigo.x, inimigo.y, inimigo.width, inimigo.height);
+
+        // Colisão com tiro
+        tiros.forEach((tiro, j) => {
+            if (
+                tiro.x < inimigo.x + inimigo.width &&
+                tiro.x + tiro.width > inimigo.x &&
+                tiro.y < inimigo.y + inimigo.height &&
+                tiro.y + tiro.height > inimigo.y
+            ) {
+                inimigo.vida -= 10;
+                tiros.splice(j, 1);
+                if (inimigo.vida <= 0) {
+                    sons.explosao.play();
+                    inimigos.splice(i, 1);
+                    if (!inimigo.boss) mortosNaFase++;
+                    else {
+                        proximaFase();
+                    }
+                }
+            }
+        });
 
         // Colisão com nave
-        if (colide(ini, nave)) {
-            vida--;
-            inimigos.splice(i, 1);
+        if (
+            nave.x < inimigo.x + inimigo.width &&
+            nave.x + nave.width > inimigo.x &&
+            nave.y < inimigo.y + inimigo.height &&
+            nave.y + nave.height > inimigo.y
+        ) {
+            vida -= 20;
             sons.explosao.play();
+            inimigos.splice(i, 1);
+            if (vida <= 0) gameOver();
         }
 
         // Se sair da tela
-        if (ini.y > canvas.height) {
-            inimigos.splice(i, 1);
-        }
+        if (inimigo.y > canvas.height) inimigos.splice(i, 1);
     });
 
-    // Atualizar tiros inimigos (inimigos ainda não estão atirando nesta versão simples)
-
-    // Verificar derrota
-    if (vida <= 0) {
-        vida = 3;
-        fase = 1;
-        inimigos = [];
-        tiros = [];
-        sons.derrota.play();
-    }
-
-    // Desenhar
-    desenhar();
-
-    requestAnimationFrame(atualizar);
-}
-
-function desenhar() {
-    // Nave
-    ctx.drawImage(imagens.nave, nave.x, nave.y, nave.width, nave.height);
-
-    // Tiros
-    tiros.forEach(tiro => {
-        ctx.drawImage(imagens.tiro, tiro.x, tiro.y, 10, 20);
-    });
-
-    // Inimigos
-    inimigos.forEach(ini => {
-        ctx.drawImage(imagens.inimigo, ini.x, ini.y, 60, 60);
-    });
-
-    // HUD tamanho proporcional
-    const escala = canvas.width / 800;
-    for (let i = 0; i < vida; i++) {
-        ctx.drawImage(imagens.coracao, 10 + i * (30 * escala), 10, 25 * escala, 25 * escala);
-    }
-
+    // HUD
     ctx.fillStyle = 'white';
-    ctx.font = `${24 * escala}px Arial`;
-    ctx.fillText(`Fase ${fase}`, canvas.width - 120 * escala, 30 * escala);
+    ctx.font = '24px sans-serif';
+    ctx.fillText(`Fase: ${fase}`, 20, 30);
+    ctx.fillText(`Vida: ${vida}`, canvas.width - 120, 30);
+
+    requestAnimationFrame(loop);
 }
 
-// Colisão
-function colide(a, b) {
-    return a.x < b.x + b.width &&
-        a.x + a.width > b.x &&
-        a.y < b.y + b.height &&
-        a.y + a.height > b.y;
+function proximaFase() {
+    fase++;
+    mortosNaFase = 0;
+    limiteInimigos = Math.floor(limiteInimigos * 1.4);
+    bossApareceu = false;
+    nave.vida = 100;
+    vida = 100;
+    if (fase > 21) vitoria();
 }
 
-atualizar();
+function gameOver() {
+    sons.derrota.play();
+    fase = 1;
+    mortosNaFase = 0;
+    limiteInimigos = 15;
+    bossApareceu = false;
+    inimigos.length = 0;
+    tiros.length = 0;
+    vida = 100;
+}
+
+function vitoria() {
+    sons.vitoria.play();
+    alert('Você venceu, parabéns!');
+    fase = 1;
+    mortosNaFase = 0;
+    limiteInimigos = 15;
+    bossApareceu = false;
+    inimigos.length = 0;
+    tiros.length = 0;
+    vida = 100;
+}
+
+loop();
